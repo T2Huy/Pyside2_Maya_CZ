@@ -11,12 +11,28 @@ def maya_main_window():
 
 class Custom_Cell_Dialogs(QtWidgets.QDialog):
 
+    dlg_instance = None
+
+    @classmethod
+    def show_dialog(cls):
+        if not cls.dlg_instance:
+            cls.dlg_instance = Custom_Cell_Dialogs()
+
+        if cls.dlg_instance.isHidden():
+            cls.dlg_instance.show()
+        else:
+            cls.dlg_instance.raise_()
+            cls.dlg_instance.activateWindow()
+
     def __init__(self, parent=maya_main_window()):
         super(Custom_Cell_Dialogs,self).__init__(parent)
 
         self.setWindowTitle("Custom Cell")
         self.setWindowFlags(self.windowFlags() ^ QtCore.Qt.WindowTitleHint)
         self.setMinimumWidth(500)
+
+        self.geometry = None
+
 
         self.create_widgets()
         self.create_layout()
@@ -87,6 +103,18 @@ class Custom_Cell_Dialogs(QtWidgets.QDialog):
 
     def on_current_text_changed(self, text):
         print(f"ComboBox text changed: {text}")
+
+    def showEvent(self, e):
+        super(Custom_Cell_Dialogs, self).showEvent(e)
+
+        if self.geometry:
+            self.restoreGeometry(self.geometry)
+
+    def closeEvent(self, e):
+        if isinstance(self, Custom_Cell_Dialogs):
+            super(Custom_Cell_Dialogs, self).closeEvent(e)
+
+            self.geometry = self.saveGeometry()
 
 
 if __name__ == "__main__":
