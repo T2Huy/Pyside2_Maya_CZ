@@ -46,6 +46,7 @@ class Outliner(QtWidgets.QDialog):
     def create_widgets(self):
         self.menu_bar = QtWidgets.QMenuBar()
         display_menu = self.menu_bar.addMenu("Display")
+        display_menu.addAction(self.display_shape_action)
         help_menu = self.menu_bar.addMenu("Help")
         help_menu.addAction(self.about_action)
 
@@ -80,7 +81,7 @@ class Outliner(QtWidgets.QDialog):
         self.refresh_btn.clicked.connect(self.refresh_tree_widget)
 
     def refresh_tree_widget(self):
-        self.shape_nodes = cmds.ls(assemblies=True)
+        self.shape_nodes = cmds.ls(shapes=True)
 
         self.tree_widget.clear()
 
