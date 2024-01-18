@@ -1,5 +1,6 @@
 from PySide2 import QtCore, QtWidgets, QtGui
 from shiboken2 import wrapInstance
+from functools import partial
 
 import maya.cmds as cmds
 import maya.OpenMaya as om
@@ -28,10 +29,15 @@ class Outliner(QtWidgets.QDialog):
         self.camera_icon = QtGui.QIcon(":Camera.png")
         self.mesh_icon = QtGui.QIcon(":mesh.svg")
 
+        self.script_job_number = -1
+
         self.create_actions()
         self.create_widgets()
         self.create_layout()
         self.create_connections()
+
+        self.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
+        self.customContextMenuRequested.connect(self.show_context_menu)
 
         self.refresh_tree_widget()
 
@@ -89,6 +95,8 @@ class Outliner(QtWidgets.QDialog):
         for name in top_level_object_names:
             item = self.create_item(name)
             self.tree_widget.addTopLevelItem(item)
+
+        self.update_selection()
 
     def create_item(self, name):
         item = QtWidgets.QTreeWidgetItem([name])
@@ -150,13 +158,48 @@ class Outliner(QtWidgets.QDialog):
 
             iterator += 1
 
+    def show_context_menu(self, point):
+        context_menu = QtWidgets.QMenu()
+        context_menu.addAction(self.display_shape_action)
+        context_menu.addSeparator()
+        context_menu.addAction(self.about_action)
+
+        context_menu.exec_(self.mapToGlobal(point))
+
+    def update_selection(self):
+        selection = cmds.ls(selection=True)
+
+        iterator = QtWidgets.QTreeWidgetItemIterator(self.tree_widget)
+        while iterator.value():
+            item = iterator.value()
+            is_selected = item.text(0) in selection
+            item.setSelected(is_selected)
+
+            iterator += 1
+
+    def set_script_job_enabled(self, enabled):
+        if enabled and self.script_job_number < 0:
+            self.script_job_number = cmds.scriptJob(event=["SelectionChanged", partial(self.update_selection)], protected=True)
+        elif not enabled and self.script_job_number >= 0:
+            cmds.scriptJob(kill=self.script_job_number, force=True)
+            self.script_job_number = -1
+
+    def showEvent(self, e):
+        super(Outliner, self).showEvent(e)
+        self.set_script_job_enabled(True)
+
+    def closeEvent(self, e):
+        if isinstance(self, Outliner):
+            super(Outliner, self).closeEvent(e)
+            self.set_script_job_enabled(False)
 
 if __name__ == "__main__":
     try:
-        tree_view_dialog.close()
-        tree_view_dialog.deleteLater()
+        outliner_dialog.set_script_job_enabled(False)
+        outliner_dialog.close()
+        outliner_dialog.deleteLater()
     except:
         pass
 
-    tree_view_dialog = Outliner()
-    tree_view_dialog.show()
+    outliner_dialog = Outliner()
+    outliner_dialog.show()
