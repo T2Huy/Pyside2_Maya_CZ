@@ -78,6 +78,23 @@ class QProgressDialog(QtWidgets.QDialog):
 
         self.progress_bar.setRange(0, number_of_operation)
         self.progress_bar.setValue(0)
+        self.progress_bar_label.setText("Operation Progress")
+
+        self.test_in_progress = True
+        self.update_visibility()
+
+        for i in range(1, number_of_operation + 1):
+            if not self.test_in_progress:
+                break
+
+            self.progress_bar_label.setText(f"Processing operation: {i} (of {number_of_operation})")
+            self.progress_bar.setValue(i)
+            time.sleep(0.5)
+
+            QtCore.QCoreApplication.processEvents()
+
+        self.test_in_progress = False
+        self.update_visibility()
 
     def cancel_progress(self):
         self.test_in_progress = False
