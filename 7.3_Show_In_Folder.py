@@ -20,7 +20,7 @@ class FileExplorerDialog(QtWidgets.QDialog):
         self.setWindowTitle(self.WINDOW_TITLE)
         if cmds.about(ntOS=True):
             self.setWindowFlags(self.windowFlags() ^ QtCore.Qt.WindowTitleHint)
-        elif cmds.about(macOS-True):
+        elif cmds.about(macOS=True):
             self.setWindowFlags(QtCore.Qt.Tool)
 
         self.create_actions()
