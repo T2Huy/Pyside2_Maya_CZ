@@ -149,7 +149,17 @@ class LightItem(QtWidgets.QWidget):
         main_layout.addStretch()
 
     def create_connections(self):
-        pass
+        self.light_type_btn.clicked.connect(self.select_light)
+        self.visibility_cb.toggled.connect(self.set_visibility)
+
+        light_type = self.get_light_type()
+        if light_type in self.SUPPORTED_TYPES:
+            self.intensity_dsb.editingFinished.connect(self.on_intensity_changed)
+            self.color_btn.color_changed.connect(self.set_color)
+
+            if light_type in self.EMIT_TYPES:
+                self.emit_diffuse_cb.toggled.connect(self.set_emit_diffuse)
+                self.emit_specular_cb.toggled.connect(self.set_emit_specular)
 
     def update_values(self):
         self.light_type_btn.setIcon(self.get_light_type_icon())
@@ -170,6 +180,10 @@ class LightItem(QtWidgets.QWidget):
 
     def get_attribute_value(self, name, attribute):
         return cmds.getAttr(f"{name}.{attribute}")
+
+    def set_attribute_value(self, name, attribute, *args):
+        attr_name = f"{name}.{attribute}"
+        cmds.setAttr(attr_name, *args)
 
     def get_light_type(self):
         return cmds.objectType(self.shape_name)
@@ -207,6 +221,24 @@ class LightItem(QtWidgets.QWidget):
 
     def emits_specular(self):
         return self.get_attribute_value(self.shape_name, "emitSpecular")
+
+    def select_light(self):
+        cmds.select(self.get_transform_name())
+
+    def set_visibility(self, checked):
+        self.set_attribute_value(self.get_transform_name(), "visibility", checked)
+
+    def on_intensity_changed(self):
+        self.set_attribute_value(self.shape_name, "intensity", self.intensity_dsb.value())
+
+    def set_color(self, color):
+        self.set_attribute_value(self.shape_name, "color", color.redF(), color.greenF(), color.blueF())
+
+    def set_emit_diffuse(self, checked):
+        self.set_attribute_value(self.shape_name, "emitDiffuse", checked)
+
+    def set_emit_specular(self, checked):
+        self.set_attribute_value(self.shape_name, "emitSpecular", checked)
 
 class LightPanelDialog(QtWidgets.QDialog):
     WINDOW_TITLE = "Light Panel"
