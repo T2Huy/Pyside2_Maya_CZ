@@ -89,16 +89,23 @@ class LightItem(QtWidgets.QWidget):
     SUPPORTED_TYPES = ["ambientLight", "directionalLight", "pointLight", "spotLight"]
     EMIT_TYPES = ["directionalLight", "pointLight", "spotLight"]
 
+    node_deleted = QtCore.Signal(str)
+
     def __init__(self, shape_name, parent=None):
         super(LightItem, self).__init__(parent)
 
         self.setFixedHeight(26)
 
         self.shape_name = shape_name
+        self.uuid = cmds.ls(shape_name, uuid=True)
+
+        self.script_jobs = []
 
         self.create_widgets()
         self.create_layout()
         self.create_connections()
+
+        self.create_script_jobs()
 
     def create_widgets(self):
         self.light_type_btn = QtWidgets.QPushButton()
@@ -182,6 +189,12 @@ class LightItem(QtWidgets.QWidget):
         return cmds.getAttr(f"{name}.{attribute}")
 
     def set_attribute_value(self, name, attribute, *args):
+        if attribute == "color":
+            if self.get_color() == self.color_btn.get_color():
+                return
+        elif args[0] == self.get_attribute_value(name, attribute):
+            return
+
         attr_name = f"{name}.{attribute}"
         cmds.setAttr(attr_name, *args)
 
@@ -240,6 +253,38 @@ class LightItem(QtWidgets.QWidget):
     def set_emit_specular(self, checked):
         self.set_attribute_value(self.shape_name, "emitSpecular", checked)
 
+    def on_node_delete(self):
+        self.node_deleted.emit(self.shape_name)
+
+    def on_name_changed(self):
+        self.shape_name = cmds.ls(self.uuid)[0]
+        self.update_values()
+
+    def create_script_jobs(self):
+        self.delete_script_jobs()
+
+        self.add_attribute_change_script_job(self.get_transform_name(), "visibility")
+        light_type = self.get_light_type()
+        if light_type in self.SUPPORTED_TYPES:
+            self.add_attribute_change_script_job(self.shape_name, "color")
+            self.add_attribute_change_script_job(self.shape_name, "intensity")
+
+            if light_type in self.EMIT_TYPES:
+                self.add_attribute_change_script_job(self.shape_name, "emitDiffuse")
+                self.add_attribute_change_script_job(self.shape_name, "emitSpecular")
+
+        self.script_jobs.append(cmds.scriptJob(nodeDeleted=(self.shape_name, partial(self.on_node_delete))))
+        self.script_jobs.append(cmds.scriptJob(nodeNameChanged=(self.shape_name, partial(self.on_name_changed))))
+
+    def add_attribute_change_script_job(self, name, attribute):
+        self.script_jobs.append(cmds.scriptJob(attributeChange=(f"{name}.{attribute}", partial(self.update_values))))
+
+    def delete_script_jobs(self):
+        for job_number in self.script_jobs:
+            cmds.evalDeferred(f"if cmds.scriptJob(exists={job_number}):\tcmds.scriptJob(kill={job_number}, force=True)")
+
+        self.script_jobs = []
+
 class LightPanelDialog(QtWidgets.QDialog):
     WINDOW_TITLE = "Light Panel"
     def __init__(self, parent=maya_main_window()):
@@ -254,6 +299,7 @@ class LightPanelDialog(QtWidgets.QDialog):
         self.resize(500, 260)
 
         self.light_items = []
+        self.script_jobs = []
 
         self.create_widgets()
         self.create_layout()
@@ -309,12 +355,16 @@ class LightPanelDialog(QtWidgets.QDialog):
         scene_lights = self.get_lights_in_scene()
         for light in scene_lights:
             light_item = LightItem(light)
+            light_item.node_deleted.connect(self.on_node_deleted)
 
             self.light_layout.addWidget(light_item)
             self.light_items.append(light_item)
 
 
     def clear_lights(self):
+        for light in self.light_items:
+            light.delete_script_jobs()
+
         self.light_items = []
 
         while self.light_layout.count() > 0:
@@ -322,10 +372,34 @@ class LightPanelDialog(QtWidgets.QDialog):
             if light_item.widget():
                 light_item.widget().deleteLater()
 
+    def create_script_jobs(self):
+        self.script_jobs.append(cmds.scriptJob(event=["DagObjectCreated", partial(self.on_dag_object_created)]))
+        self.script_jobs.append(cmds.scriptJob(event=["Undo", partial(self.on_undo)]))
+
+    def delete_script_jobs(self):
+        for job_number in self.script_jobs:
+            cmds.scriptJob(kill=job_number)
+
+        self.script_jobs = []
+
+    def on_dag_object_created(self):
+        if len(cmds.ls(type="light")) != len(self.light_items):
+            print("New light created...")
+            self.refresh_lights()
+    def on_undo(self):
+        if len(cmds.ls(type="light")) != len(self.light_items):
+            print("Undo...")
+            self.refresh_lights()
+
+    def on_node_deleted(self):
+        self.refresh_lights()
+
     def showEvent(self, event):
+        self.create_script_jobs()
         self.refresh_lights()
 
     def closeEvent(self, event):
+        self.delete_script_jobs()
         self.clear_lights()
 
 if __name__ == "__main__":
