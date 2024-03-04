@@ -20,35 +20,121 @@ class TimelineOverlay(QtWidgets.QWidget):
         time_control_ptr = omui.MQtUtil.findControl(self.time_control)
         time_control_widget = wrapInstance(int(time_control_ptr), QtWidgets.QWidget)
 
-
         super(TimelineOverlay, self).__init__(time_control_widget)
+
+        self.frame_times = [1001, 1006, 1008, 1010, 1019, 1030, 1050, 1051, 1052, 1053, 1054, 1120]
 
         self.set_context_menu_enabled(False)
 
     def add_frame(self):
-        print("TODO: Add Frame")
+        current_time = cmds.currentTime(q=True)
+        if current_time not in self.frame_times:
+            self.frame_times.append(current_time)
+            self.update()
+
+    def add_frames(self):
+        selected_range = self.get_selected_range()
+        for frame_time in range(selected_range[0], selected_range[1]):
+            if frame_time not in self.frame_times:
+                self.frame_times.append(frame_time)
+
+        self.update()
 
     def remove_frame(self):
-        print("TODO: Remove Frame")
+        current_time = cmds.currentTime(q=True)
+        if current_time in self.frame_times:
+            self.frame_times.remove(current_time)
+            self.update()
+
+    def remove_frames(self):
+        selected_range = self.get_selected_range()
+        for frame_time in range(selected_range[0], selected_range[1]):
+            if frame_time in self.frame_times:
+                self.frame_times.remove(frame_time)
+
+        self.update()
+
+    def get_selected_range(self):
+        selected_range = cmds.timeControl(self.time_control, q=True, rangeArray=True)
+        return [int(selected_range[0]), int(selected_range[1])]
 
     def set_context_menu_enabled(self, enabled):
         self.context_menu_enable = enabled
 
-        if enabled:
-            print("TODO: Add Context Menu")
+    def mousePressEvent(self, mouse_event):
+        if mouse_event.button() == QtCore.Qt.RightButton:
+            if self.context_menu_enable:
+
+                context_menu = QtWidgets.QMenu()
+
+                title_action = context_menu.addAction("Timeline Overlay")
+                title_action.setDisabled(True)
+                context_menu.addSeparator()
+
+                action = context_menu.addAction("Add Frame")
+                action.triggered.connect(self.add_frame)
+
+                action = context_menu.addAction("Add Frames")
+                action.triggered.connect(self.add_frames)
+
+                context_menu.addSeparator()
+
+                action = context_menu.addAction("Remove Frame")
+                action.triggered.connect(self.remove_frame)
+
+                action = context_menu.addAction("Remove Frames")
+                action.triggered.connect(self.remove_frames)
+
+                context_menu.exec_(self.mapToGlobal(mouse_event.pos()))
+
+                return
+
+        mouse_event.ignore()
+
+    def mouseReleaseEvent(self, mouse_event):
+        if mouse_event.button() == QtCore.Qt.RightButton:
+            if self.context_menu_enable:
+                return
+
+        mouse_event.ignore()
 
     def paintEvent(self, paint_event):
         parent = self.parentWidget()
         if parent:
             self.setGeometry(parent.geometry())
 
+            # painter = QtGui.QPainter(self)
+            #
+            # fill_color = QtGui.QColor(TimelineOverlay.KEYFRAME_COLOR)
+            # fill_color.setAlpha(63)
+            #
+            # painter.fillRect(0, 0, self.width(), self.height(), fill_color)
+
+            range_start = cmds.playbackOptions(q=True, minTime=True)
+            range_end = cmds.playbackOptions(q=True, maxTime=True)
+            displayed_frame_count = range_end - range_start + 1
+
+            padding = self.width() * 0.005
+            frame_width = (self.width() * 0.99) / displayed_frame_count
+
+            frame_height = 0.333 * self.height()
+            frame_y = self.height() - frame_height
+
             painter = QtGui.QPainter(self)
+
+            pen = painter.pen()
+            pen.setWidth(1)
+            pen.setColor(TimelineOverlay.KEYFRAME_COLOR)
+            painter.setPen(pen)
 
             fill_color = QtGui.QColor(TimelineOverlay.KEYFRAME_COLOR)
             fill_color.setAlpha(63)
 
-            painter.fillRect(0, 0, self.width(), self.height(), fill_color)
+            for frame_time in self.frame_times:
+                frame_x = padding + ((frame_time - range_start) * frame_width) + 0.5
 
+                painter.fillRect(frame_x, frame_y, frame_width, frame_height, fill_color)
+                painter.drawRect(frame_x, frame_y, frame_width, frame_height)
 
 if __name__ == "__main__":
     try:
@@ -63,10 +149,10 @@ class TimelineOverlayDialog(QtWidgets.QDialog):
 
     @classmethod
     def delete_overlays(cls):
-        if TimelineOverlayDialog.timeline_ovelay:
-            TimelineOverlayDialog.timeline_ovelay.setParent(None)
-            TimelineOverlayDialog.timeline_ovelay.deleteLater()
-            TimelineOverlayDialog.timeline_ovelay = None
+        if TimelineOverlayDialog.timeline_overlay:
+            TimelineOverlayDialog.timeline_overlay.setParent(None)
+            TimelineOverlayDialog.timeline_overlay.deleteLater()
+            TimelineOverlayDialog.timeline_overlay = None
 
     def __init__(self, parent=maya_main_window()):
         super(TimelineOverlayDialog, self).__init__(parent)
